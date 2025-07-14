@@ -27,7 +27,7 @@ async def start(update: telegram.Update, context: telegram.ext.ContextTypes.DEFA
         'Actualmente, solo puedo consultar el centro de votación.\n'
         '➡️ `/consulta [número de cédula]`: Consulta tu centro de votación.\n\n'
         '**Ejemplo:** `/consulta V12345678`',
-        parse_mode=telegram.ParseMode.MARKDOWN
+        parse_mode=constants.ParseMode.MARKDOWN
     )
 
 
@@ -38,7 +38,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
     if not args:
         await update.message.reply_text(
             'Por favor, ingresa el número de cédula después del comando. Ejemplo: `/consulta V12345678`',
-            parse_mode=telegram.ParseMode.MARKDOWN
+            parse_mode=constants.ParseMode.MARKDOWN
         )
         return
 
@@ -66,7 +66,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
             segundo_nombre = data.get('snombre', 'N/A')
             primer_apellido = data.get('papellido', 'N/A')
             segundo_apellido = data.get('sapellido', 'N/A')
-            centro_votacion = data.get('cv', 'No especificado')
+            cv = data.get('cv', 'No especificado')
 
             nombre_completo = f"{primer_nombre} {segundo_nombre}".strip()
             apellido_completo = f"{primer_apellido} {segundo_apellido}".strip()
@@ -76,7 +76,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
                 f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', 'N/A')}\n"
                 f"   **Nombre:** {nombre_completo if nombre_completo else 'N/A'}\n"
                 f"   **Apellido:** {apellido_completo if apellido_completo else 'N/A'}\n"
-                f"   🗳️ **Centro de Votación:** {centro_votacion}\n"
+                f"   🗳️ **Centro de Votación:** {cv}\n"
             )
         else:
             mensaje_respuesta = (
@@ -84,7 +84,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
                 f"Por favor, verifica el número."
             )
 
-        await update.message.reply_text(mensaje_respuesta, parse_mode=telegram.ParseMode.MARKDOWN)
+        await update.message.reply_text(mensaje_respuesta, parse_mode=constants.ParseMode.MARKDOWN)
 
     except requests.exceptions.RequestException as e:
         await update.message.reply_text(

@@ -3,6 +3,7 @@ import telegram
 # Importa las clases de la nueva forma para Application
 from telegram.ext import Application, CommandHandler, MessageHandler
 from telegram.ext import filters  # Sigue siendo correcto
+from telegram import constants
 import requests
 
 # --- CONFIGURACIÓN ---

@@ -1,6 +1,7 @@
 import os
 import telegram
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler
+from telegram.ext import filters
 import requests  # ¡Ahora sí la usamos para tu API!
 
 # --- CONFIGURACIÓN ---
@@ -48,8 +49,7 @@ def _consultar_api(update, context, api_url, tipo_consulta):
             f'Por favor, ingresa el número de cédula después del comando. Ejemplo: /{tipo_consulta} 12345678')
         return
 
-    # Convertir a mayúsculas por si tu API espera el prefijo (V, E, P)
-    cedula = int(args)
+    cedula = int(args[0])
 
     update.message.reply_text(
         f'Consultando tu API para la cédula {cedula} ({tipo_consulta})...')
@@ -72,15 +72,15 @@ def _consultar_api(update, context, api_url, tipo_consulta):
         # Ajusta esta lógica para extraer los campos correctos.
 
         mensaje_respuesta = ""
-        if tipo_consulta == "votacion":
+        if tipo_consulta == "elector":
             # Asumiendo que tu API tiene un campo 'encontrado'
             if data and data.get('cedula', False):
                 nacionalidad = data.get('nacionalidad', 'N/A')
-                pnombre = data.get('nombre', 'N/A')
-                snombre = data.get('nombre', 'N/A')
-                papellido = data.get('nombre', 'N/A')
-                sapellido = data.get('nombre', 'N/A')
-                cv = data.get('centro_votacion', 'No especificado')
+                pnombre = data.get('pnombre', 'N/A')
+                snombre = data.get('snombre', 'N/A')
+                papellido = data.get('papellido', 'N/A')
+                sapellido = data.get('sapellido', 'N/A')
+                cv = data.get('cv', 'No especificado')
 
                 mensaje_respuesta = (
                     f"✅ **Centro de Votación para (C.I. {nacionalidad}{cedula}):**\n"

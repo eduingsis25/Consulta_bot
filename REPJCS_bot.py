@@ -33,7 +33,6 @@ async def start(update: telegram.Update, context: telegram.ext.ContextTypes.DEFA
 
 async def consultar_elector(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja el comando /consulta para obtener datos electorales."""
-    # En la nueva API, context.args ya no es una tupla, es una lista.
     args = context.args
     if not args:
         await update.message.reply_text(
@@ -42,26 +41,40 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
         )
         return
 
-    cedula_input = args[0].strip().upper()
+    # Guardamos la cédula tal cual la ingresó el usuario
+    cedula_completa_con_prefijo = args[0].strip().upper()
 
-    if not (len(cedula_input) > 1 and cedula_input[0] in ('V', 'E', 'P') and cedula_input[1:].isdigit()):
+    # Validamos el formato de cédula venezolana (V, E, P + números)
+    # PERO, extraemos solo los números para la API si la validación es correcta.
+    if (len(cedula_completa_con_prefijo) > 1 and
+            cedula_completa_con_prefijo[0] in ('V', 'E', 'P') and
+            cedula_completa_con_prefijo[1:].isdigit()):
+        # Extraemos solo los números para la API
+        cedula_solo_numeros = cedula_completa_con_prefijo[1:]
+    else:
+        # Si no cumple el formato, enviamos mensaje de error al usuario
         await update.message.reply_text(
             'Formato de cédula incorrecto. Debe empezar con V, E o P seguido de números. Ejemplo: V12345678')
         return
 
-    await update.message.reply_text(f'Consultando tu API para la cédula {cedula_input}...')
+    await update.message.reply_text(f'Consultando tu API para la cédula {cedula_completa_con_prefijo}...')
 
     try:
-        params = {'cedula': cedula_input}
+        # Aquí enviamos SOLO los números de la cédula a tu API
+        params = {'cedula': cedula_solo_numeros}
         response = requests.get(API_VOTACION_URL, params=params)
         response.raise_for_status()
 
         data = response.json()
 
         mensaje_respuesta = ""
+        # Es crucial que tu API siga devolviendo la 'cedula' COMPLETA (incluyendo nacionalidad)
+        # en la respuesta JSON para que la parte de nacionalidad{data.get('cedula', 'N/A')} funcione.
+        # Si tu API solo devuelve los números de cédula, deberás ajustar:
+        # f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', cedula_solo_numeros)}\n"
+        # para usar `cedula_solo_numeros` en caso de que la API no devuelva el campo 'cedula'.
         if data and data.get('cedula'):
             nacionalidad = data.get('nacionalidad', 'N/A')
-            # ¡Revisa estas claves con tu API!
             primer_nombre = data.get('pnombre', 'N/A')
             segundo_nombre = data.get('snombre', 'N/A')
             primer_apellido = data.get('papellido', 'N/A')
@@ -73,6 +86,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
 
             mensaje_respuesta = (
                 f"✅ **Datos del Elector:**\n"
+                # Aquí usamos la cédula de la API
                 f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', 'N/A')}\n"
                 f"   **Nombre:** {nombre_completo if nombre_completo else 'N/A'}\n"
                 f"   **Apellido:** {apellido_completo if apellido_completo else 'N/A'}\n"
@@ -80,7 +94,7 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
             )
         else:
             mensaje_respuesta = (
-                f"❌ No se encontró información electoral para la cédula {cedula_input}. "
+                f"❌ No se encontró información electoral para la cédula {cedula_completa_con_prefijo}. "
                 f"Por favor, verifica el número."
             )
 
@@ -98,14 +112,9 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
 
 def main() -> None:
     """Función principal para iniciar el bot."""
-    # Crea la instancia de la aplicación
     application = Application.builder().token(TOKEN).build()
-
-    # Añadir manejadores de comandos
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("consulta", consultar_elector))
-
-    # Iniciar el bot (polling)
     application.run_polling(allowed_updates=telegram.Update.ALL_TYPES)
 
 

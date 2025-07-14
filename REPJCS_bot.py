@@ -1,10 +1,27 @@
+import os
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import requests  # ¡Ahora sí la usamos para tu API!
 
 # --- CONFIGURACIÓN ---
 # Reemplaza 'TU_TOKEN_DE_BOT' con el token que te dio BotFather
-TOKEN = '7963130345:AAHaCoLCVPrjJXqXlZnXAacaMJ0MTuGBuT0'
+TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+if not TOKEN:
+    raise ValueError(
+        "TELEGRAM_BOT_TOKEN no está configurada como variable de entorno.")
+
+# URLs de tus endpoints de API desde variables de entorno
+API_VOTACION_URL = os.environ.get('API_VOTACION_URL')
+if not API_VOTACION_URL:
+    raise ValueError(
+        "API_VOTACION_URL no está configurada como variable de entorno.")
+
+API_CENSADO_URL = os.environ.get('API_CENSADO_URL')
+if not API_CENSADO_URL:
+    raise ValueError(
+        "API_CENSADO_URL no está configurada como variable de entorno.")
+
 
 # URLs de tus endpoints de API
 # AJUSTA ESTAS URLs según cómo tengas configurada tu API

@@ -23,11 +23,6 @@ if not API_CENSADO_URL:
         "API_CENSADO_URL no está configurada como variable de entorno.")
 
 
-# URLs de tus endpoints de API
-# AJUSTA ESTAS URLs según cómo tengas configurada tu API
-API_VOTACION_URL = 'http://repjcs.onrender.com/api/elector'
-API_CENSADO_URL = 'http://repjcs.onrender.com/api/censo'
-
 # Puedes agregar una clave API si tu API lo requiere para autenticación
 # API_KEY = 'TU_API_KEY_SI_ES_NECESARIA'
 # HEADERS = {'Authorization': f'Bearer {API_KEY}'} # Ejemplo de header para API Key

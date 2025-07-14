@@ -1,116 +1,116 @@
 import os
 import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler
+# Correcto para versiones modernas de python-telegram-bot
 from telegram.ext import filters
-import requests  # ¡Ahora sí la usamos para tu API!
+import requests
 
 # --- CONFIGURACIÓN ---
-# Reemplaza 'TU_TOKEN_DE_BOT' con el token que te dio BotFather
+# Leer el token de Telegram desde las variables de entorno
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-
 if not TOKEN:
     raise ValueError(
         "TELEGRAM_BOT_TOKEN no está configurada como variable de entorno.")
 
-# URLs de tus endpoints de API desde variables de entorno
+# URL de tu endpoint de API para consulta electoral (votación)
 API_VOTACION_URL = os.environ.get('API_VOTACION_URL')
 if not API_VOTACION_URL:
     raise ValueError(
         "API_VOTACION_URL no está configurada como variable de entorno.")
 
-API_CENSADO_URL = os.environ.get('API_CENSADO_URL')
-if not API_CENSADO_URL:
-    raise ValueError(
-        "API_CENSADO_URL no está configurada como variable de entorno.")
+# La API_CENSADO_URL y su manejo se eliminan por ahora, según tu indicación.
+# Se considerará para una futura versión.
 
-
-# Puedes agregar una clave API si tu API lo requiere para autenticación
-# API_KEY = 'TU_API_KEY_SI_ES_NECESARIA'
-# HEADERS = {'Authorization': f'Bearer {API_KEY}'} # Ejemplo de header para API Key
 
 # --- FUNCIONES DEL BOT ---
-
 
 def start(update, context):
     """Maneja el comando /start."""
     update.message.reply_text(
-        '¡Hola! Soy Progreso, tu bot de consulta de cédulas. Por favor, usa los siguientes comandos:\n\n'
-        '➡️ /consulta [número de cédula]: Consulta el centro de votación.\n'
-        '➡️ /censo [número de cédula]: Consulta si la persona está censada y otros datos.\n\n'
-        '**Ejemplo:** /consulta 12345678'
+        '¡Hola! Soy Progreso, tu bot de consulta de cédulas.\n\n'
+        'Actualmente, solo puedo consultar el centro de votación.\n'
+        '➡️ `/consulta [número de cédula]`: Consulta tu centro de votación.\n\n'
+        '**Ejemplo:** `/consulta V12345678`',
+        # Asegura que el formato Markdown se aplique
+        parse_mode=telegram.ParseMode.MARKDOWN
     )
 
 
-def _consultar_api(update, context, api_url, tipo_consulta):
-    """Función auxiliar para realizar la petición a tu API."""
+def consultar_elector(update, context):
+    """Maneja el comando /consulta para obtener datos electorales."""
     args = context.args
     if not args:
         update.message.reply_text(
-            f'Por favor, ingresa el número de cédula después del comando. Ejemplo: /{tipo_consulta} 12345678')
+            'Por favor, ingresa el número de cédula después del comando. Ejemplo: `/consulta V12345678`',
+            parse_mode=telegram.ParseMode.MARKDOWN
+        )
         return
 
-    cedula = int(args[0])
+    # Obtener la cédula, limpiar espacios, y convertir a mayúsculas
+    cedula_input = args[0].strip().upper()
+
+    # Validación de cédula venezolana (V, E, P + números)
+    # Asumimos que la API puede manejar el prefijo (V, E, P) como parte de la cédula string
+    if not (len(cedula_input) > 1 and cedula_input[0] in ('V', 'E', 'P') and cedula_input[1:].isdigit()):
+        update.message.reply_text(
+            'Formato de cédula incorrecto. Debe empezar con V, E o P seguido de números. Ejemplo: V12345678')
+        return
 
     update.message.reply_text(
-        f'Consultando tu API para la cédula {cedula} ({tipo_consulta})...')
+        f'Consultando tu API para la cédula {cedula_input}...')
 
     try:
-        # Prepara los parámetros para la petición GET o POST
-        params = {'cedula': cedula}
-        # headers = HEADERS # Descomenta si usas una API Key
+        # Prepara los parámetros para la petición GET. Se envía la cédula como string.
+        params = {'cedula': cedula_input}
 
-        # Realiza la petición a tu API
-        # Si tu API usa POST, usa requests.post(api_url, json=params)
-        response = requests.get(api_url, params=params)
+        # Realiza la petición a tu API de votación
+        response = requests.get(API_VOTACION_URL, params=params)
         # Lanza una excepción para códigos de error HTTP (4xx o 5xx)
         response.raise_for_status()
 
         data = response.json()  # Asume que tu API devuelve JSON
 
-        # --- AQUÍ ES DONDE PERSONALIZAS LA RESPUESTA ---
-        # El formato de 'data' depende de lo que tu API devuelva.
-        # Ajusta esta lógica para extraer los campos correctos.
-
         mensaje_respuesta = ""
-        if tipo_consulta == "elector":
-            # Asumiendo que tu API tiene un campo 'encontrado'
-            if data and data.get('cedula', False):
-                nacionalidad = data.get('nacionalidad', 'N/A')
-                pnombre = data.get('pnombre', 'N/A')
-                snombre = data.get('snombre', 'N/A')
-                papellido = data.get('papellido', 'N/A')
-                sapellido = data.get('sapellido', 'N/A')
-                cv = data.get('cv', 'No especificado')
+        # Verifica si tu API devolvió datos válidos para la cédula
+        # Asumo que la presencia de 'cedula' en la respuesta JSON indica éxito.
+        # Ajusta 'data.get('cedula')' a la clave que tu API usa para indicar que encontró el registro.
+        if data and data.get('cedula'):
+            # --- PERSONALIZA AQUÍ LA EXTRACCIÓN DE CAMPOS SEGÚN LA RESPUESTA DE TU API ---
+            # ¡IMPORTANTE! Reemplaza 'pnombre', 'snombre', etc. con los nombres EXACTOS de las claves JSON de tu API.
+            nacionalidad = data.get('nacionalidad', 'N/A')
+            # Revisa: ¿tu API devuelve 'pnombre' o 'primerNombre'?
+            primer_nombre = data.get('pnombre', 'N/A')
+            # Revisa: ¿tu API devuelve 'snombre' o 'segundoNombre'?
+            segundo_nombre = data.get('snombre', 'N/A')
+            # Revisa: ¿tu API devuelve 'papellido' o 'primerApellido'?
+            primer_apellido = data.get('papellido', 'N/A')
+            # Revisa: ¿tu API devuelve 'sapellido' o 'segundoApellido'?
+            segundo_apellido = data.get('sapellido', 'N/A')
+            # Revisa: ¿tu API devuelve 'cv' o 'centro_votacion'?
+            centro_votacion = data.get('cv', 'No especificado')
+            # Añade otros campos si tu API los devuelve, por ejemplo:
+            # direccion_centro = data.get('direccion_centro', 'N/A')
+            # mesa_votacion = data.get('mesa', 'N/A')
 
-                mensaje_respuesta = (
-                    f"✅ **Centro de Votación para (C.I. {nacionalidad}{cedula}):**\n"
-                    f"   🗳️ **Primer Nombre:** {pnombre}\n"
-                    f"   🗳️ **Segundo Nombre:** {snombre}\n"
-                    f"   🗳️ **Primer Apellido:** {papellido}\n"
-                    f"   🗳️ **Segundo Apellido:** {sapellido}\n"
-                    f"   🗳️ **Centro de Votación:** {cv}\n"
-                )
-            else:
-                mensaje_respuesta = f"❌ No se encontró centro de votación para la cédula {cedula} o la cédula no está registrada para votar en el municipio."
+            # Construir el nombre completo para la presentación
+            nombre_completo = f"{primer_nombre} {segundo_nombre}".strip()
+            apellido_completo = f"{primer_apellido} {segundo_apellido}".strip()
 
-        # elif tipo_consulta == "censado":
-        #     if data and data.get('encontrado', False):
-        #         nombre_completo = data.get('nombre_completo', 'N/A')
-        #         fecha_nacimiento = data.get('fecha_nacimiento', 'N/A')
-        #         estado = data.get('estado', 'N/A')
-        #         municipio = data.get('municipio', 'N/A')
-
-        #         mensaje_respuesta = (
-        #             f"✅ **Datos Censados para {nombre_completo} (C.I. {cedula}):**\n"
-        #             f"   🎂 **Fecha Nacimiento:** {fecha_nacimiento}\n"
-        #             f"   🗺️ **Ubicación Censal:** {municipio}, {estado}"
-        #             # Agrega más campos si tu API los devuelve (ej. dirección, etc.)
-        #         )
-        #     else:
-        #         mensaje_respuesta = f"❌ No se encontraron datos censales para la cédula {cedula}."
-
-        # else:
-        #     mensaje_respuesta = "Tipo de consulta desconocido en el procesamiento interno."
+            mensaje_respuesta = (
+                f"✅ **Datos del Elector:**\n"
+                f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', 'N/A')}\n"
+                f"   **Nombre:** {nombre_completo if nombre_completo else 'N/A'}\n"
+                f"   **Apellido:** {apellido_completo if apellido_completo else 'N/A'}\n"
+                f"   🗳️ **Centro de Votación:** {centro_votacion}\n"
+                # f"   📍 **Dirección:** {direccion_centro}\n" # Descomentar si usas
+                # f"   🪑 **Mesa:** {mesa_votacion}" # Descomentar si usas
+            )
+        else:
+            # Mensaje si no se encuentran datos para la cédula
+            mensaje_respuesta = (
+                f"❌ No se encontró información electoral para la cédula {cedula_input}. "
+                f"Por favor, verifica el número."
+            )
 
         update.message.reply_text(
             mensaje_respuesta, parse_mode=telegram.ParseMode.MARKDOWN)
@@ -122,31 +122,21 @@ def _consultar_api(update, context, api_url, tipo_consulta):
     except ValueError:
         # Manejo de errores si la respuesta de la API no es un JSON válido
         update.message.reply_text(
-            '❌ Error al procesar la respuesta de tu API. El formato no es válido.')
+            '❌ Error al procesar la respuesta de tu API. El formato de la respuesta no es válido.')
     except Exception as e:
         # Otros errores inesperados
         update.message.reply_text(f'❌ Ocurrió un error inesperado: {e}.')
 
 
-def consultar_votacion(update, context):
-    """Maneja el comando /consulta."""
-    _consultar_api(update, context, API_VOTACION_URL, "elector")
-
-
-def consultar_censado(update, context):
-    """Maneja el comando /censo."""
-    _consultar_api(update, context, API_CENSADO_URL, "censo")
-
-
 def main():
     """Función principal para iniciar el bot."""
-    updater = Updater(TOKEN)
+    updater = Updater(TOKEN)  # CORREGIDO: Eliminado use_context=True
     dp = updater.dispatcher
 
     # Añadir manejadores de comandos
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("consulta", consultar_votacion))
-    dp.add_handler(CommandHandler("censo", consultar_censado))
+    # El comando /censo y su handler se eliminan por ahora.
+    dp.add_handler(CommandHandler("consulta", consultar_elector))
 
     # Iniciar el bot
     updater.start_polling()

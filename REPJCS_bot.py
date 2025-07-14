@@ -140,7 +140,7 @@ def consultar_censado(update, context):
 
 def main():
     """Función principal para iniciar el bot."""
-    updater = Updater(TOKEN, use_context=True)
+    updater = Updater(TOKEN)
     dp = updater.dispatcher
 
     # Añadir manejadores de comandos

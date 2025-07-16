@@ -1,8 +1,7 @@
 import os
 import telegram
-# Importa las clases de la nueva forma para Application
 from telegram.ext import Application, CommandHandler, MessageHandler
-from telegram.ext import filters  # Sigue siendo correcto
+from telegram.ext import filters
 from telegram import constants
 import requests
 
@@ -12,12 +11,13 @@ if not TOKEN:
     raise ValueError(
         "TELEGRAM_BOT_TOKEN no está configurada como variable de entorno.")
 
+# Ahora será 'https://consultaelecciones.onrender.com/api/elector'
 API_VOTACION_URL = os.environ.get('API_VOTACION_URL')
 if not API_VOTACION_URL:
     raise ValueError(
         "API_VOTACION_URL no está configurada como variable de entorno.")
 
-# --- FUNCIONES DEL BOT ---
+# --- Funciones del bot (sin cambios en start) ---
 
 
 async def start(update: telegram.Update, context: telegram.ext.ContextTypes.DEFAULT_TYPE) -> None:
@@ -41,18 +41,13 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
         )
         return
 
-    # Guardamos la cédula tal cual la ingresó el usuario
     cedula_completa_con_prefijo = args[0].strip().upper()
 
-    # Validamos el formato de cédula venezolana (V, E, P + números)
-    # PERO, extraemos solo los números para la API si la validación es correcta.
     if (len(cedula_completa_con_prefijo) > 1 and
             cedula_completa_con_prefijo[0] in ('V', 'E', 'P') and
             cedula_completa_con_prefijo[1:].isdigit()):
-        # Extraemos solo los números para la API
         cedula_solo_numeros = cedula_completa_con_prefijo[1:]
     else:
-        # Si no cumple el formato, enviamos mensaje de error al usuario
         await update.message.reply_text(
             'Formato de cédula incorrecto. Debe empezar con V, E o P seguido de números. Ejemplo: V12345678')
         return
@@ -60,19 +55,16 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
     await update.message.reply_text(f'Consultando tu API para la cédula {cedula_completa_con_prefijo}...')
 
     try:
-        # Aquí enviamos SOLO los números de la cédula a tu API
-        params = {'cedula': cedula_solo_numeros}
-        response = requests.get(API_VOTACION_URL, params=params)
+        # ¡¡¡CAMBIO CRÍTICO AQUÍ!!!
+        # Construimos la URL completa concatenando la base y la cédula
+        api_url_completa = f"{API_VOTACION_URL}/{cedula_solo_numeros}"
+        response = requests.get(api_url_completa)
+        # Ya no necesitamos 'params=params' porque la cédula ya está en la URL
         response.raise_for_status()
 
         data = response.json()
 
         mensaje_respuesta = ""
-        # Es crucial que tu API siga devolviendo la 'cedula' COMPLETA (incluyendo nacionalidad)
-        # en la respuesta JSON para que la parte de nacionalidad{data.get('cedula', 'N/A')} funcione.
-        # Si tu API solo devuelve los números de cédula, deberás ajustar:
-        # f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', cedula_solo_numeros)}\n"
-        # para usar `cedula_solo_numeros` en caso de que la API no devuelva el campo 'cedula'.
         if data and data.get('cedula'):
             nacionalidad = data.get('nacionalidad', 'N/A')
             primer_nombre = data.get('pnombre', 'N/A')
@@ -86,7 +78,6 @@ async def consultar_elector(update: telegram.Update, context: telegram.ext.Conte
 
             mensaje_respuesta = (
                 f"✅ **Datos del Elector:**\n"
-                # Aquí usamos la cédula de la API
                 f"   👤 **Cédula:** {nacionalidad}{data.get('cedula', 'N/A')}\n"
                 f"   **Nombre:** {nombre_completo if nombre_completo else 'N/A'}\n"
                 f"   **Apellido:** {apellido_completo if apellido_completo else 'N/A'}\n"

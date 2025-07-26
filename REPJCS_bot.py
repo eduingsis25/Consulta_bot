@@ -54,7 +54,7 @@ async def _post_elector_voted(cedula_solo_numeros: str) -> dict:
     # PREPARAR ENCABEZADOS DE AUTENTICACIÓN
     headers = {}
     if API_MARCAR_VOTADO_AUTH_TOKEN:
-        # Asumimos que es un Token Token. Si tu API usa otro formato (ej. una clave X-API-Key),
+        # Asumimos que es un Token "Token". Si tu API usa otro formato (ej. una clave X-API-Key),
         # DEBES AJUSTAR esta línea. Por ejemplo: headers['X-API-Key'] = API_MARCAR_VOTADO_AUTH_TOKEN
         headers['Authorization'] = f'Token {API_MARCAR_VOTADO_AUTH_TOKEN}'
 

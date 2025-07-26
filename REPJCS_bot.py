@@ -43,7 +43,7 @@ async def start(update: telegram.Update, context: telegram.ext.ContextTypes.DEFA
     )
 
 
-async def _post_elector_voted(cedula_solo_numeros: str) -> dict:
+async def _post_elector_voted(elector_data: dict) -> dict:
     """
     Intenta enviar una petición POST a la API para marcar al elector como votado.
     Devuelve un diccionario con 'success' (bool) y 'message' (str).
@@ -59,7 +59,7 @@ async def _post_elector_voted(cedula_solo_numeros: str) -> dict:
         headers['Authorization'] = f'Token {API_MARCAR_VOTADO_AUTH_TOKEN}'
 
     try:
-        data_to_send = {'cedula': cedula_solo_numeros}
+        data_to_send = elector_data
 
         # Enviamos la petición POST incluyendo los headers
         response = requests.post(
@@ -145,7 +145,7 @@ async def _process_elector_request(update: telegram.Update, context: telegram.ex
             )
 
             # --- INTENTAR MARCAR COMO VOTADO ---
-            voto_result = await _post_elector_voted(cedula_solo_numeros)
+            voto_result = await _post_elector_voted(data)
             if voto_result['success']:
                 mensaje_respuesta += "\n\n✔️ Voto registrado exitosamente."
             else:

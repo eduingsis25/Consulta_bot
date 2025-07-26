@@ -20,6 +20,12 @@ API_MARCAR_VOTADO_URL = os.environ.get('API_MARCAR_VOTADO_URL')
 if not API_MARCAR_VOTADO_URL:
     print("ADVERTENCIA: API_MARCAR_VOTADO_URL no configurada. La funcionalidad de marcar votado no estará activa.")
 
+# NUEVA VARIABLE DE ENTORNO PARA EL TOKEN DE AUTENTICACIÓN
+API_MARCAR_VOTADO_AUTH_TOKEN = os.environ.get('API_MARCAR_VOTADO_AUTH_TOKEN')
+if not API_MARCAR_VOTADO_AUTH_TOKEN:
+    print("ADVERTENCIA: API_MARCAR_VOTADO_AUTH_TOKEN no configurada. Las peticiones a la API de marcado de votado podrían fallar por autenticación (Error 401).")
+
+
 # Expresión regular para validar cédulas (V, E, P, G, J + 1 a 9 dígitos, O solo 7 a 9 dígitos)
 CEDULA_REGEX = r"^(?:[VEPGJ])?\d{7,9}$"
 
@@ -37,61 +43,48 @@ async def start(update: telegram.Update, context: telegram.ext.ContextTypes.DEFA
     )
 
 
-async def _post_elector_voted(elector_data_to_post: dict) -> dict:
+async def _post_elector_voted(cedula_solo_numeros: str) -> dict:
     """
     Intenta enviar una petición POST a la API para marcar al elector como votado.
-    Recibe el diccionario completo de datos del elector para enviar.
     Devuelve un diccionario con 'success' (bool) y 'message' (str).
     """
     if not API_MARCAR_VOTADO_URL:
         return {'success': False, 'message': 'API_MARCAR_VOTADO_URL no configurada. No se pudo registrar el voto.'}
 
+    # PREPARAR ENCABEZADOS DE AUTENTICACIÓN
+    headers = {}
+    if API_MARCAR_VOTADO_AUTH_TOKEN:
+        # Asumimos que es un Token Bearer. Si tu API usa otro formato (ej. una clave X-API-Key),
+        # DEBES AJUSTAR esta línea. Por ejemplo: headers['X-API-Key'] = API_MARCAR_VOTADO_AUTH_TOKEN
+        headers['Authorization'] = f'Bearer {API_MARCAR_VOTADO_AUTH_TOKEN}'
+
     try:
+        data_to_send = {'cedula': cedula_solo_numeros}
+
+        # Enviamos la petición POST incluyendo los headers
         response = requests.post(
-            API_MARCAR_VOTADO_URL, json=elector_data_to_post)
-        # Esto lanzará una excepción requests.exceptions.HTTPError para códigos de estado 4xx/5xx
+            API_MARCAR_VOTADO_URL, json=data_to_send, headers=headers)
         response.raise_for_status()
 
-        # Si llegamos aquí, el código de estado HTTP fue 2xx (éxito).
         return {'success': True, 'message': 'Voto registrado exitosamente.'}
 
     except requests.exceptions.HTTPError as http_err:
-        # --- INICIO DE LA SECCIÓN MODIFICADA PARA MANEJO DE ERRORES HTTP ---
-        # Por defecto, usamos el texto de la respuesta como mensaje de error
-        error_response_msg = str(http_err.response.text)
-
-        try:
-            # Intentar parsear el JSON de la respuesta de error
-            error_details = http_err.response.json()
-            if isinstance(error_details, dict):
-                # Si es un diccionario y tiene un campo 'message', lo usamos
-                error_response_msg = error_details.get(
-                    'message', error_response_msg)
-            elif isinstance(error_details, list) and error_details:
-                # Si es una lista, y no sabemos la estructura exacta, podemos tomar el primer elemento
-                # o representarla como string. Aquí, tomamos una representación simple.
-                error_response_msg = f"API respondió con un error de lista: {error_details}"
-            # Si es un diccionario sin 'message', o cualquier otro JSON,
-            # error_response_msg ya está en su valor por defecto (el texto original de la respuesta).
-        except requests.exceptions.JSONDecodeError:
-            # Si la respuesta no es JSON válido, error_response_msg ya contiene el texto crudo
-            pass
-
-        # Conflict (estándar para duplicados)
-        if http_err.response.status_code == 409:
-            return {'success': False, 'message': 'El elector ya había votado y está registrado (por la API de registro).'}
-        elif http_err.response.status_code == 400:  # Bad Request
-            return {'success': False, 'message': f'Error de petición al registrar voto: {error_response_msg}.'}
-        else:
-            # Para todos los demás errores HTTP (ej. 500 Internal Server Error, 401 Unauthorized, etc.)
-            return {'success': False, 'message': f'Error HTTP {http_err.response.status_code} al registrar voto: {error_response_msg}.'}
-        # --- FIN DE LA SECCIÓN MODIFICADA PARA MANEJO DE ERRORES HTTP ---
-
+        if http_err.response.status_code == 401:
+            # Mensaje específico para el error 401
+            return {'success': False, 'message': 'Error de autenticación (401). Verifica que el token/clave API sea correcto y esté configurado en Railway.'}
+        elif http_err.response.status_code == 409:
+            return {'success': False, 'message': 'El elector ya había votado y está registrado.'}
+        elif http_err.response.status_code == 400:
+            try:
+                error_details = http_err.response.json()
+                msg = error_details.get('message', str(http_err.response.text))
+            except requests.exceptions.JSONDecodeError:
+                msg = str(http_err.response.text)
+            return {'success': False, 'message': f'Error de petición al registrar voto: {msg}.'}
+        return {'success': False, 'message': f'Error HTTP {http_err.response.status_code} al registrar voto: {http_err.response.text}.'}
     except requests.exceptions.RequestException as req_err:
         return {'success': False, 'message': f'Error de conexión al registrar voto: {req_err}.'}
     except Exception as e:
-        # Este bloque ahora solo debería capturar errores que no sean de red o HTTP.
-        # El error 'list' object has no attribute 'get' debería ser manejado arriba.
         return {'success': False, 'message': f'Error inesperado al registrar voto: {e}.'}
 
 
@@ -118,7 +111,9 @@ async def _process_elector_request(update: telegram.Update, context: telegram.ex
         cedula_solo_numeros = cedula_completa_con_prefijo
 
     print(
-        f"DEBUG: Enviando GET a API_VOTACION_URL: {API_VOTACION_URL}/{cedula_solo_numeros}")
+        f"DEBUG: Enviando a API_VOTACION_URL: {API_VOTACION_URL}/{cedula_solo_numeros}")
+    print(
+        f"DEBUG: Enviando a API_MARCAR_VOTADO_URL (POST): {API_MARCAR_VOTADO_URL} con cedula: {cedula_solo_numeros}")
 
     await update.message.reply_text(f'Consultando tu API para la cédula {cedula_completa_con_prefijo}...')
 
@@ -138,8 +133,6 @@ async def _process_elector_request(update: telegram.Update, context: telegram.ex
             segundo_apellido = data.get('sapellido', 'N/A')
             cv = data.get('cv', 'No especificado')
 
-            voto_status_from_consulta = str(data.get('voto', 'FALSE')).upper()
-
             nombre_completo = f"{primer_nombre} {segundo_nombre}".strip()
             apellido_completo = f"{primer_apellido} {segundo_apellido}".strip()
 
@@ -151,22 +144,12 @@ async def _process_elector_request(update: telegram.Update, context: telegram.ex
                 f"   🗳️ **Centro de Votación:** {cv}\n"
             )
 
-            if voto_status_from_consulta == "TRUE":
-                mensaje_respuesta += "\n\n✔️ **Estado de Voto:** El elector ya ha votado (según los datos del CNE)."
+            # --- INTENTAR MARCAR COMO VOTADO ---
+            voto_result = await _post_elector_voted(cedula_solo_numeros)
+            if voto_result['success']:
+                mensaje_respuesta += "\n\n✔️ Voto registrado exitosamente."
             else:
-                elector_data_for_post = data.copy()  # Make a copy to modify
-                elector_data_for_post['voto'] = "TRUE"
-
-                print(
-                    f"DEBUG: Intentando POST a API_MARCAR_VOTADO_URL: {API_MARCAR_VOTADO_URL}")
-                print(f"DEBUG: Payload para POST: {elector_data_for_post}")
-
-                # Pass the full dict
-                voto_result = await _post_elector_voted(elector_data_for_post)
-                if voto_result['success']:
-                    mensaje_respuesta += "\n\n✔️ Voto registrado exitosamente."
-                else:
-                    mensaje_respuesta += f"\n\n⚠️ No se pudo registrar el voto: {voto_result['message']}"
+                mensaje_respuesta += f"\n\n⚠️ No se pudo registrar el voto: {voto_result['message']}"
 
         else:
             mensaje_respuesta = (
